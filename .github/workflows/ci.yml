@@ -23,6 +23,14 @@ jobs:
             - name: List files in repository
               run: ls -la
 
+            - name: Extract Docker metadata
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                images: ghcr.io/${{ github.repository }}
+                tags: |
+                  type=raw,value=latest
+
             - name: Log in to GHCR
               if: github.event_name == 'push' && github.ref == 'refs/heads/main'
               uses: docker/login-action@v3
@@ -45,4 +53,5 @@ jobs:
               with:
                 context: .
                 push: true
-                tags: ghcr.io/sonelooo77:latest
+                tags: ${{ steps.meta.outputs.tags }}
+                labels: ${{ steps.meta.outputs.labels }}
