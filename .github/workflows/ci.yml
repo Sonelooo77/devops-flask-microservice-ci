@@ -1,11 +1,13 @@
-name: First CI Pipeline
+name: Build and Test Docker Image
 
 on:
     push:
         branches: [ "main" ]
+    pull_request:
+        branches: [ "main" ]
     
 jobs:
-    test-job:
+    build-and-test:
         runs-on: ubuntu-latest
 
         steps:
@@ -13,8 +15,13 @@ jobs:
             - name: Checkout repository code
               uses: actions/checkout@v4
 
-            - name: Run a one-line script
-              run: echo "GitHub Actions | Pipeline is working."
 
             - name: List files in repository
               run: ls -la
+
+            - name: Build Docker Image
+              run: docker build -t test-app:latest .
+
+            - name: Run container tests
+              run: docker run --rm test-app:latest
+
