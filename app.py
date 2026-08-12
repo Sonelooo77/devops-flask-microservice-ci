@@ -14,7 +14,7 @@ def home():
 def health_check():
     return jsonify({
         "status": "UP",
-        "service": "devops-app"
+        "service": "flask-app"
     }), 200
 
 if __name__ == '__main__':

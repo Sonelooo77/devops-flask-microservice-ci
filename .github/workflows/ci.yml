@@ -1,4 +1,4 @@
-name: Build and Test Docker Image
+name: Advanced CI Pipeline (Quality, Test & Security)
 
 on:
   push:
@@ -7,31 +7,67 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-and-test:
+  # JOB 1 : Unit test and code checking
+  code-quality-and-tests:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint code with flake8
+        run: |
+          # Stops if syntax error
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Simple warnings
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run unit tests with pytest
+        run: pytest -v
+
+  # JOB 2 : Build Docker & Security scan
+  docker-build-and-security:
+    needs: code-quality-and-tests 
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build local Docker image
-        run: docker build -t flask-app:latest .
+      - name: Build Docker image
+        run: docker build -t devops-flask-api:latest .
 
-      - name: Start flask app container
-        run: docker run -d -p 5000:5000 --name flask-app flask-app:latest
+     
+      - name: Scan Docker image for vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'devops-flask-api:latest'
+          format: 'table'
+          exit-code: '0' 
+          severity: 'CRITICAL,HIGH'
 
-      - name: Time for API to boot
+      - name: Start Flask App Container
+        run: docker run -d -p 5000:5000 --name api-service devops-flask-api:latest
+
+      - name: Wait for API to boot
         run: sleep 2
 
-      - name: Test /health endpoint
-        run: |
-          echo "Testing API Health check..."
-          curl --fail http://localhost:5000/health
+      - name: Test /health endpoint via cURL
+        run: curl --fail http://localhost:5000/health
 
-      - name: Show container logs
+      - name: Show Container Logs on Failure
         if: always()
-        run: docker logs flask-app
+        run: docker logs api-service
