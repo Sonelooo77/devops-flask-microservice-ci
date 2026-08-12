@@ -22,4 +22,4 @@ jobs:
         run: docker build -t my-devops-app:latest .
 
       - name: Run container tests
-        run: docker run -d --rm my-devops-app:latest
+        run: docker run -d -p 5000:5000 --name flask-app flask-app:latest
