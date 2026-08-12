@@ -4,6 +4,12 @@ WORKDIR /app
 
 ENV PYTHONUNBUFFERED = 1
 
-COPY script.py .
+COPY requirements.txt .
 
-CMD ["python3", "script.py"]
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+EXPOSE 5000
+
+CMD ["python3", "app.py"]
