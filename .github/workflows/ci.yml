@@ -25,6 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Syntax and code quality check
       - name: Lint code with flake8
         run: |
           # Stops if syntax error
@@ -50,8 +51,7 @@ jobs:
       - name: Build Docker image
         run: docker build -t devops-flask-api:latest .
 
-     
-      - name: Scan Docker image for vulnerabilities (Trivy)
+      - name: Scan Docker image for vulnerabilities using Trivy
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'devops-flask-api:latest'
@@ -59,6 +59,7 @@ jobs:
           exit-code: '0' 
           severity: 'CRITICAL,HIGH'
 
+      # Integration test : runs container and verify http response using curl
       - name: Start Flask App Container
         run: docker run -d -p 5000:5000 --name api-service devops-flask-api:latest
 
