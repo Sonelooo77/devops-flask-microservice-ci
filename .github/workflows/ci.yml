@@ -21,5 +21,17 @@ jobs:
       - name: Build local Docker image
         run: docker build -t flask-app:latest .
 
-      - name: Run container tests
+      - name: Start flask app container
         run: docker run -d -p 5000:5000 --name flask-app flask-app:latest
+
+      - name: Time for API to boot
+        run: sleep 2
+
+      - name: Test /health endpoint
+        run: |
+          echo "Testing API Health check..."
+          curl --fail http://localhost:5000/health
+
+      - name: Show container logs
+        if: always()
+        run: docker logs flask-app
