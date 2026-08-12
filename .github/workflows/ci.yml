@@ -1,57 +1,25 @@
-name: Build, Test and Publish Docker Image
+name: Build and Test Docker Image
 
 on:
-    push:
-        branches: [ "main","develop" ]
-
-    pull_request:
-        branches: [ "main" ]
-    
-permissions:
-  contents: read
-  packages: write
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
-    build-and-test:
-        runs-on: ubuntu-latest
+  build-and-test:
+    runs-on: ubuntu-latest
 
-        steps:
+    steps:
 
-            - name: Checkout repository code
-              uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-            - name: List files in repository
-              run: ls -la
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-            - name: Extract Docker metadata
-              id: meta
-              uses: docker/metadata-action@v5
-              with:
-                images: ghcr.io/${{ github.repository }}
-                tags: |
-                  type=raw,value=latest
+      - name: Build local Docker image
+        run: docker build -t my-devops-app:latest .
 
-            - name: Log in to GHCR
-              if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-              uses: docker/login-action@v3
-              with:
-                registry: ghcr.io
-                username: ${{ github.actor }}
-                password: ${{ secrets.GHCR_PAT }}
-
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v3
-
-            - name: Build and Test local image
-              run: |
-                docker build -t test-app:latest .
-                docker run --rm test-app:latest
-
-            - name: Build and push Docker image to GHCR
-              if: github.event_name != 'pull_request'
-              uses: docker/build-push-action@v5
-              with:
-                context: .
-                push: true
-                tags: ${{ steps.meta.outputs.tags }}
-                labels: ${{ steps.meta.outputs.labels }}
+      - name: Run container tests
+        run: docker run --rm my-devops-app:latest
