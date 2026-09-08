@@ -4,7 +4,7 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # Prevent python from buffering stdout/stderr
-ENV PYTHONUNBUFFERED = 1
+ENV PYTHONUNBUFFERED=1
 
 # Install flake8, pytest and flask
 COPY requirements.txt .
