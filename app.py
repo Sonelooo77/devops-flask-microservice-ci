@@ -13,7 +13,7 @@ def home():
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Healthcheck endpoint used by orchestrators (K8s/Docker) and CI/CD pipelines."""
+    """Healthcheck endpoint"""
     return jsonify({
         "status": "UP",
         "service": "flask-app"
@@ -21,7 +21,7 @@ def health_check():
 
 @app.route('/description', methods=['GET'])
 def message():
-    return "<p>The purpose of this website is to help me practice developing and optimizing an entire project using a DevSecOps approach.</p> <h1>Specifically: Develop a web microservice, containerize it properly, automate testing, build an automated CI/CD pipeline</h1>"
+    return "<h1>Description Page</h1><p>The purpose of this website is to help me practice developing and optimizing an entire project using a DevSecOps approach.</p> <p>Specifically: Develop a web microservice, containerize it properly, automate testing, build an automated CI/CD pipeline</p>"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
