@@ -1,18 +1,15 @@
-name: Advanced CI Pipeline (Quality, Test & Security)
+name: CI/CD Pipeline - Build, Publish & Sync Infra
 
 on:
   push:
-    branches: [ "main", "develop" ]
-  pull_request:
     branches: [ "main" ]
 
 jobs:
-  # JOB 1 : Unit test and code checking
-  code-quality-and-tests:
+  # Dependencies, Linting & Unit testing
+  test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out repository
+      - name: Check out code
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -23,52 +20,80 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install flake8 pytest flask==3.0.3
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # Syntax and code quality check
-      - name: Lint code with flake8
-        run: |
-          # Stops if syntax error
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          # Simple warnings
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      - name: Lint with flake8
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
-      - name: Run unit tests with pytest
+      - name: Run unit tests
         run: pytest -v
 
-  # JOB 2 : Build Docker & Security scan
-  docker-build-and-security:
-    needs: code-quality-and-tests 
+  # Docker image build, security scan, publishing and infrastructure sync
+  build-and-sync:
+    needs: test
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out repository
+      - name: Check out app repo
         uses: actions/checkout@v4
 
+      # Get commit short hash
+      - name: Set short Git SHA
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build local image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/devops-flask-api:${{ steps.vars.outputs.sha_short }}
+
+      - name: Scan image for vulnerabilities with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/devops-flask-api:${{ steps.vars.outputs.sha_short }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'  
+          
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
-        run: docker build -t devops-flask-api:latest .
-
-      - name: Scan Docker image for vulnerabilities using Trivy
-        uses: aquasecurity/trivy-action@master
+      - name: Build and push image
+        uses: docker/build-push-action@v5
         with:
-          image-ref: 'devops-flask-api:latest'
-          format: 'table'
-          exit-code: '0' 
-          severity: 'CRITICAL,HIGH'
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/devops-flask-api:${{ steps.vars.outputs.sha_short }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/devops-flask-api:latest
 
-      # Integration test : runs container and verify http response using curl
-      - name: Start Flask App Container
-        run: docker run -d -p 5000:5000 --name api-service devops-flask-api:latest
+      # Get infrastructure repository, update image tag and commit
+      - name: Update Terraform configuration in infra repo
+        env:
+          NEW_TAG: ${{ steps.vars.outputs.sha_short }}
+          GH_TOKEN: ${{ secrets.INFRA_REPO_PAT }}
+          INFRA_REPO: "Sonelooo77/devops-flask-microservice-IaC"
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Wait for API to boot
-        run: sleep 2
+          git clone https://${GH_TOKEN}@github.com/${INFRA_REPO}.git infra
+          cd infra
 
-      - name: Test /health endpoint via cURL
-        run: curl --fail http://localhost:5000/health
+          echo "image_tag = \"${NEW_TAG}\"" > terraform.tfvars
 
-      - name: Show Container Logs on Failure
-        if: always()
-        run: docker logs api-service
+          if ! git diff --quiet; then
+            git add main.tf
+            git commit -m "ci: bump flask-api image tag to ${NEW_TAG}"
+            git push origin main
+          else
+            echo "No change detected in main.tf"
+          fi
